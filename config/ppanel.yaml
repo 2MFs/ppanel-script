@@ -11,11 +11,10 @@ JwtAuth:
   AccessExpire: 604800  # Token expiration time in seconds
 
 MySQL:
-  Path: 127.0.0.1  # Database address
-  Port: 3306  # Database port
-  Dbname: vpnboard  # Database name
+  Addr: mysql_db:3306 # Database address
+  Dbname: my_database  # Database name
   Username: root  # Database username
-  Password:  # Database password
+  Password: rootpassword # Database password
   MaxIdleConns: 10  # Maximum idle connections
   MaxOpenConns: 10  # Maximum open connections
   LogMode: "dev"  # Log mode
@@ -23,6 +22,11 @@ MySQL:
   Config: charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai  # Database config parameters
 
 Redis:
-  Host: 127.0.0.1:6379  # Redis server address
+  Host: redis_cache:6379  # Redis server address
   Type: server  # Redis type
   Pass:  # Redis password (if any)
+
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: my_database
+      MYSQL_USER: user
+      MYSQL_PASSWORD: userpassword

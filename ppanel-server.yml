@@ -5,7 +5,7 @@ services:
     image: ppanel/ppanel-server:beta
     container_name: ppanel-server-beta
     ports:
-      - '8081:8080'
+      - '8080:8080'
     volumes:
       - ./config/ppanel.yaml:/app/etc/ppanel.yaml
     restart: always

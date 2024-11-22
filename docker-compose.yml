@@ -5,7 +5,7 @@ services:
     image: ppanel/ppanel-server:beta
     container_name: ppanel-server-beta
     ports:
-      - '8081:8080'
+      - '8080:8080'
     volumes:
       - ./config/ppanel.yaml:/app/etc/ppanel.yaml
     restart: always
@@ -18,7 +18,6 @@ services:
       - '3000:3000'
     environment:
       # At least one of the following parameters is required. For other parameters, please refer to the project documentation.
-      NEXT_PUBLIC_SITE_URL: https://example.com
       NEXT_PUBLIC_API_URL: https://api.example.com
   ppanel-user-web:
     image: ppanel/ppanel-user-web:beta
@@ -26,7 +25,6 @@ services:
       - '3001:3000'
     environment:
       # At least one of the following parameters is required. For other parameters, please refer to the project documentation.
-      NEXT_PUBLIC_SITE_URL: https://example.com
       NEXT_PUBLIC_API_URL: https://api.example.com
   mysql:
     image: mysql:8.0.23

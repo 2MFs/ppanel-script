@@ -46,6 +46,18 @@ cd ppanel-script
  docker compose up -d
 ```
 
+### 脚本部署
+
+运行以下命令来部署 PPanel：
+
+```sh
+bash <(curl -fsSL https://raw.githubusercontent.com/perfect-panel/ppanel-script/refs/heads/main/install.sh)
+```
+
+```sh
+bash <(wget -qO- https://raw.githubusercontent.com/perfect-panel/ppanel-script/refs/heads/main/install.sh)
+```
+
 ### 部署服务端
 
 [配置文件说明](https://docs.ppanel.dev/zh-CN/docs/server#%E4%BF%AE%E6%94%B9%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6)

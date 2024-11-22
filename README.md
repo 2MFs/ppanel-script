@@ -46,6 +46,18 @@ Run the following command to deploy PPanel with one click:
  docker compose up -d
 ```
 
+### Script Deployment
+
+Run the following commands to deploy PPanel:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/perfect-panel/ppanel-script/refs/heads/main/install.sh)
+```
+
+```bash
+bash <(wget -qO- https://raw.githubusercontent.com/perfect-panel/ppanel-script/refs/heads/main/install.sh)
+```
+
 ### Deploy the Server Side
 
 [Configuration File Instructions](https://docs.ppanel.dev/en-US/docs/server#modify-configuration-file)
