@@ -1,4 +1,4 @@
-version: '3'
+version: '3.8'
 
 services:
   ppanel-server:
@@ -14,28 +14,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - ppanel-network
-
-  ppanel-admin-web:
-    image: ppanel/ppanel-admin-web:beta
-    container_name: ppanel-admin-web
-    ports:
-      - '3000:3000'
-    environment:
-      # Replace with actual API endpoint if needed
-      NEXT_PUBLIC_API_URL: https://api.example.com
-    networks:
-      - ppanel-network
-
-  ppanel-user-web:
-    image: ppanel/ppanel-user-web:beta
-    container_name: ppanel-user-web
-    ports:
-      - '3001:3000'
-    environment:
-      # Replace with actual API endpoint if needed
-      NEXT_PUBLIC_API_URL: https://api.example.com
     networks:
       - ppanel-network
 
@@ -76,6 +54,24 @@ services:
       retries: 3
     networks:
       - ppanel-network
+
+  ppanel-admin-web:
+    image: ppanel/ppanel-admin-web:beta
+    container_name: ppanel-admin-web
+    ports:
+      - '3000:3000'
+    environment:
+      # Replace with actual API endpoint if needed
+      NEXT_PUBLIC_API_URL: https://api.example.com
+
+  ppanel-user-web:
+    image: ppanel/ppanel-user-web:beta
+    container_name: ppanel-user-web
+    ports:
+      - '3001:3000'
+    environment:
+      # Replace with actual API endpoint if needed
+      NEXT_PUBLIC_API_URL: https://api.example.com
 
 networks:
   ppanel-network:
