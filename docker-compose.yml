@@ -10,22 +10,35 @@ services:
       - ./config/ppanel.yaml:/app/etc/ppanel.yaml
     restart: always
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ppanel-network
+
   ppanel-admin-web:
     image: ppanel/ppanel-admin-web:beta
+    container_name: ppanel-admin-web
     ports:
       - '3000:3000'
     environment:
-      # At least one of the following parameters is required. For other parameters, please refer to the project documentation.
+      # Replace with actual API endpoint if needed
       NEXT_PUBLIC_API_URL: https://api.example.com
+    networks:
+      - ppanel-network
+
   ppanel-user-web:
     image: ppanel/ppanel-user-web:beta
+    container_name: ppanel-user-web
     ports:
       - '3001:3000'
     environment:
-      # At least one of the following parameters is required. For other parameters, please refer to the project documentation.
+      # Replace with actual API endpoint if needed
       NEXT_PUBLIC_API_URL: https://api.example.com
+    networks:
+      - ppanel-network
+
   mysql:
     image: mysql:8.0.23
     container_name: mysql_db
@@ -39,6 +52,15 @@ services:
       - "3306:3306"
     volumes:
       - ./docker/mysql:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --bind-address=0.0.0.0
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ppanel-network
+
   redis:
     image: redis:7
     container_name: redis_cache
@@ -47,3 +69,14 @@ services:
       - "6379:6379"
     volumes:
       - ./docker/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ppanel-network
+
+networks:
+  ppanel-network:
+    driver: bridge
