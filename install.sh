@@ -94,7 +94,8 @@ echo -e "9) Exit / 退出"
 echo -e "${CYAN}==================================================${NC}"
 
 # Prompt user for selection
-read -p "${BOLD}Please enter a number (1-9): ${NC}" choice
+echo -ne "${BOLD}Please enter a number (1-9): ${NC}"
+read choice
 # If the user does not input, default to 1
 if [ -z "$choice" ]; then
     choice=1
@@ -102,7 +103,8 @@ fi
 
 # Define a function to set NEXT_PUBLIC_API_URL and clear other environment variables
 set_next_public_api_url_in_yml() {
-    read -p "${BOLD}Please enter NEXT_PUBLIC_API_URL (e.g., https://api.example.com): ${NC}" api_url
+    echo -ne "${BOLD}Please enter NEXT_PUBLIC_API_URL (e.g., https://api.example.com): ${NC}"
+    read api_url
     if [ -z "$api_url" ]; then
         echo -e "${RED}NEXT_PUBLIC_API_URL cannot be empty. Please rerun the script and enter a valid URL.${NC}"
         echo -e "${RED}NEXT_PUBLIC_API_URL 不能为空，请重新运行脚本并输入有效的 URL。${NC}"
@@ -170,7 +172,8 @@ case $choice in
         echo -e "${YELLOW}请根据实际需求修改以下配置文件，然后再继续部署：${NC}"
         echo "- ppanel-script/config/ppanel.yaml"
         echo "- ppanel-script/docker-compose.yml"
-        read -p "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
+        echo -ne "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
+        read
         docker compose up -d
         ;;
     2)
@@ -183,7 +186,8 @@ case $choice in
         echo -e "${YELLOW}请根据实际需求修改以下配置文件，然后再继续部署：${NC}"
         echo "- ppanel-script/config/ppanel.yaml"
         echo "- ppanel-script/ppanel-server.yml"
-        read -p "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
+        echo -ne "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
+        read
         docker compose -f ppanel-server.yml up -d
         ;;
     3)
@@ -194,7 +198,8 @@ case $choice in
         echo "- ppanel-script/ppanel-admin-web.yml"
         echo -e "${YELLOW}请根据实际需求修改以下配置文件，然后再继续部署：${NC}"
         echo "- ppanel-script/ppanel-admin-web.yml"
-        read -p "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
+        echo -ne "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
+        read
         docker compose -f ppanel-admin-web.yml up -d
         ;;
     4)
@@ -205,7 +210,8 @@ case $choice in
         echo "- ppanel-script/ppanel-user-web.yml"
         echo -e "${YELLOW}请根据实际需求修改以下配置文件，然后再继续部署：${NC}"
         echo "- ppanel-script/ppanel-user-web.yml"
-        read -p "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
+        echo -ne "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
+        read
         docker compose -f ppanel-user-web.yml up -d
         ;;
     5)
@@ -216,7 +222,8 @@ case $choice in
         echo "- ppanel-script/ppanel-web.yml"
         echo -e "${YELLOW}请根据实际需求修改以下配置文件，然后再继续部署：${NC}"
         echo "- ppanel-script/ppanel-web.yml"
-        read -p "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
+        echo -ne "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
+        read
         docker compose -f ppanel-web.yml up -d
         ;;
     6)
