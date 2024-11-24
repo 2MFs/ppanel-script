@@ -1,416 +1,293 @@
 #!/bin/bash
 
-# Main menu function
-main_menu() {
-    echo -e "\nSelect an option / 选择一个选项:"
-    echo -e "\033[1mUse number keys to select an option / 使用数字键选择选项:\033[0m"
-    PS3="Please enter your choice / 请输入您的选择: "
-    options=("Server Installation / 服务端安装" "Admin Web Installation / 管理端 Web 安装" "User Web Installation / 用户端 Web 安装")
-    select opt in "${options[@]}"; do
-        case $REPLY in
-            1)
-                server_installation_menu
-                break
-                ;;
-            2)
-                admin_web_install
-                break
-                ;;
-            3)
-                user_web_install
-                break
-                ;;
-            *)
-                echo "Invalid option / 无效选项"
-                ;;
-        esac
-    done
-}
+# PPanel One-Click Deployment Script
+# Supports selecting different service combinations for installation, automatically sets NEXT_PUBLIC_API_URL, clears other environment variables
+# Prompts user to modify ppanel.yaml and corresponding Docker Compose files when deploying the server and one-click deployment
+# Checks if the user is already in the ppanel-script directory
+# Bilingual support (English first, then Chinese)
+# Added an "Update services" option that functions similarly to "Restart services"
 
-# Server installation method selection function
-server_installation_menu() {
-    echo -e "\nSelect installation method / 选择安装方法:"
-    echo -e "\033[1mUse number keys to select an option / 使用数字键选择选项:\033[0m"
-    PS3="Please enter your choice / 请输入您的选择: "
-    options=("Command-line installation / 命令行安装" "Web installation / Web 安装")
-    select opt in "${options[@]}"; do
-        case $REPLY in
-            1)
-                command_line_install
-                break
-                ;;
-            2)
-                web_install
-                break
-                ;;
-            *)
-                echo "Invalid option / 无效选项"
-                ;;
-        esac
-    done
-}
+# Check if running as root
+if [ "$EUID" -ne 0 ]; then
+  echo "Please run this script as root."
+  echo "请以 root 用户运行此脚本。"
+  exit 1
+fi
 
-# Admin Web installation function
-admin_web_install() {
-    echo -e "\nStarting Admin Web Installation / 开始管理端 Web 安装"
+# Update system package index
+echo "Updating system package index..."
+echo "更新系统包索引..."
+apt-get update -y
 
-    # Check if Docker is installed
-    check_docker
+# Install necessary packages
+echo "Installing necessary packages..."
+echo "安装必要的软件包..."
+apt-get install -y curl git
 
-    # Prompt user to input environment variables
-    echo -e "\nEnter the following information / 请输入以下信息:"
-    read -p "Enter NEXT_PUBLIC_API_URL (e.g., https://api.example.com): " NEXT_PUBLIC_API_URL
+# Check if Docker is already installed
+if command -v docker >/dev/null 2>&1; then
+    echo "Docker is already installed. Skipping installation."
+    echo "检测到 Docker 已安装，跳过安装步骤。"
+else
+    # Install Docker
+    echo "Installing Docker..."
+    echo "正在安装 Docker..."
+    curl -fsSL https://get.docker.com | bash -s -- -y
+fi
 
-    # Optional
-    read -p "Enter NEXT_PUBLIC_DEFAULT_LANGUAGE (Optional, e.g., zh-CN or en-US): " NEXT_PUBLIC_DEFAULT_LANGUAGE
+# Check if in ppanel-script directory
+CURRENT_DIR=${PWD##*/}
+if [ "$CURRENT_DIR" != "ppanel-script" ]; then
+    # Clone PPanel script repository
+    echo "Cloning PPanel script repository..."
+    echo "正在克隆 PPanel 脚本仓库..."
+    git clone https://github.com/perfect-panel/ppanel-script.git
+    cd ppanel-script
+else
+    echo "Detected that you are already in the ppanel-script directory, skipping clone step."
+    echo "检测到已在 ppanel-script 目录中，跳过克隆步骤。"
+fi
 
-    # Build Docker run command
-    docker_cmd="docker run -d -p 3000:3000 \
-      --restart=always --log-opt max-size=10m --log-opt max-file=3 \
-      --env NEXT_PUBLIC_API_URL=\"$NEXT_PUBLIC_API_URL\""
+# Get server IP address
+SERVER_IP=$(hostname -I | awk '{print $1}')
 
-    if [ -n "$NEXT_PUBLIC_DEFAULT_LANGUAGE" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_DEFAULT_LANGUAGE=\"$NEXT_PUBLIC_DEFAULT_LANGUAGE\""
+# Display service component selection menu
+echo "Please select the action you want to perform:"
+echo "请选择您要执行的操作："
+echo "1) One-click deployment (All components) / 一键部署（全部组件）"
+echo "2) Deploy server / 部署服务端"
+echo "3) Deploy admin dashboard / 部署管理端"
+echo "4) Deploy user dashboard / 部署用户端"
+echo "5) Deploy front-end (Admin and User dashboards) / 部署前端（管理端和用户端）"
+echo "6) Update services / 更新服务"
+echo "7) Restart services / 重启服务"
+echo "8) View logs / 查看日志"
+echo "9) Exit / 退出"
+
+read -p "Please enter a number (1-9): " choice
+# If the user does not input, default to 1
+if [ -z "$choice" ]; then
+    choice=1
+fi
+
+# Define a function to set NEXT_PUBLIC_API_URL and clear other environment variables
+set_next_public_api_url_in_yml() {
+    read -p "Please enter NEXT_PUBLIC_API_URL (e.g., https://api.example.com): " api_url
+    if [ -z "$api_url" ]; then
+        echo "NEXT_PUBLIC_API_URL cannot be empty. Please rerun the script and enter a valid URL."
+        echo "NEXT_PUBLIC_API_URL 不能为空，请重新运行脚本并输入有效的 URL。"
+        exit 1
     fi
+    yml_file=$1
 
-    docker_cmd="$docker_cmd --name ppanel-admin-web-beta ppanel/ppanel-admin-web:beta"
+    # Backup the original yml file
+    cp "$yml_file" "${yml_file}.bak"
 
-    # Run Docker command
-    eval $docker_cmd
+    # Initialize flag
+    in_environment_section=0
 
-    # Get server IP address
-    ip_address=$(hostname -I 2>/dev/null | awk '{print $1}')
-    if [ -z "$ip_address" ]; then
-        ip_address=$(ifconfig 2>/dev/null | grep 'inet ' | awk 'NR==1{print $2}')
-    fi
-    if [ -z "$ip_address" ]; then
-        ip_address=$(ip addr show 2>/dev/null | grep 'inet ' | awk '/inet /{print $2}' | cut -d'/' -f1 | head -n 1)
-    fi
+    # Create a temporary file
+    temp_file=$(mktemp)
 
-    echo -e "\nAdmin Web Installation Completed / 管理端 Web 安装完成"
-    echo -e "You can access the Admin Web at http://$ip_address:3000 / 您可以通过 http://$ip_address:3000 访问管理端 Web"
-}
-
-# User Web installation function
-user_web_install() {
-    echo -e "\nStarting User Web Installation / 开始用户端 Web 安装"
-
-    # Check if Docker is installed
-    check_docker
-
-    # Prompt user to input environment variables
-    echo -e "\nEnter the following information / 请输入以下信息:"
-    read -p "Enter NEXT_PUBLIC_API_URL (e.g., https://api.example.com): " NEXT_PUBLIC_API_URL
-
-    # Optional
-    read -p "Enter NEXT_PUBLIC_DEFAULT_LANGUAGE (Optional, e.g., zh-CN or en-US): " NEXT_PUBLIC_DEFAULT_LANGUAGE
-    read -p "Enter NEXT_PUBLIC_SITE_URL (Optional): " NEXT_PUBLIC_SITE_URL
-    read -p "Enter NEXT_PUBLIC_EMAIL (Optional): " NEXT_PUBLIC_EMAIL
-
-    echo -e "\nEnter social media links (optional) / 输入社交媒体链接（可选）:"
-    read -p "NEXT_PUBLIC_TELEGRAM_LINK: " NEXT_PUBLIC_TELEGRAM_LINK
-    read -p "NEXT_PUBLIC_TWITTER_LINK: " NEXT_PUBLIC_TWITTER_LINK
-    read -p "NEXT_PUBLIC_DISCORD_LINK: " NEXT_PUBLIC_DISCORD_LINK
-    read -p "NEXT_PUBLIC_INSTAGRAM_LINK: " NEXT_PUBLIC_INSTAGRAM_LINK
-    read -p "NEXT_PUBLIC_LINKEDIN_LINK: " NEXT_PUBLIC_LINKEDIN_LINK
-    read -p "NEXT_PUBLIC_FACEBOOK_LINK: " NEXT_PUBLIC_FACEBOOK_LINK
-    read -p "NEXT_PUBLIC_GITHUB_LINK: " NEXT_PUBLIC_GITHUB_LINK
-
-    # Build Docker run command
-    docker_cmd="docker run -d -p 3001:3000 \
-      --restart=always --log-opt max-size=10m --log-opt max-file=3 \
-      --env NEXT_PUBLIC_API_URL=\"$NEXT_PUBLIC_API_URL\""
-
-    if [ -n "$NEXT_PUBLIC_DEFAULT_LANGUAGE" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_DEFAULT_LANGUAGE=\"$NEXT_PUBLIC_DEFAULT_LANGUAGE\""
-    fi
-
-    if [ -n "$NEXT_PUBLIC_SITE_URL" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_SITE_URL=\"$NEXT_PUBLIC_SITE_URL\""
-    fi
-
-    if [ -n "$NEXT_PUBLIC_EMAIL" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_EMAIL=\"$NEXT_PUBLIC_EMAIL\""
-    fi
-
-    if [ -n "$NEXT_PUBLIC_TELEGRAM_LINK" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_TELEGRAM_LINK=\"$NEXT_PUBLIC_TELEGRAM_LINK\""
-    fi
-
-    if [ -n "$NEXT_PUBLIC_TWITTER_LINK" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_TWITTER_LINK=\"$NEXT_PUBLIC_TWITTER_LINK\""
-    fi
-
-    if [ -n "$NEXT_PUBLIC_DISCORD_LINK" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_DISCORD_LINK=\"$NEXT_PUBLIC_DISCORD_LINK\""
-    fi
-
-    if [ -n "$NEXT_PUBLIC_INSTAGRAM_LINK" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_INSTAGRAM_LINK=\"$NEXT_PUBLIC_INSTAGRAM_LINK\""
-    fi
-
-    if [ -n "$NEXT_PUBLIC_LINKEDIN_LINK" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_LINKEDIN_LINK=\"$NEXT_PUBLIC_LINKEDIN_LINK\""
-    fi
-
-    if [ -n "$NEXT_PUBLIC_FACEBOOK_LINK" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_FACEBOOK_LINK=\"$NEXT_PUBLIC_FACEBOOK_LINK\""
-    fi
-
-    if [ -n "$NEXT_PUBLIC_GITHUB_LINK" ]; then
-        docker_cmd="$docker_cmd --env NEXT_PUBLIC_GITHUB_LINK=\"$NEXT_PUBLIC_GITHUB_LINK\""
-    fi
-
-    docker_cmd="$docker_cmd --name ppanel-user-web-beta ppanel/ppanel-user-web:beta"
-
-    # Run Docker command
-    eval $docker_cmd
-
-    # Get server IP address
-    ip_address=$(hostname -I 2>/dev/null | awk '{print $1}')
-    if [ -z "$ip_address" ]; then
-        ip_address=$(ifconfig 2>/dev/null | grep 'inet ' | awk 'NR==1{print $2}')
-    fi
-    if [ -z "$ip_address" ]; then
-        ip_address=$(ip addr show 2>/dev/null | grep 'inet ' | awk '/inet /{print $2}' | cut -d'/' -f1 | head -n 1)
-    fi
-
-    echo -e "\nUser Web Installation Completed / 用户端 Web 安装完成"
-    echo -e "You can access the User Web at http://$ip_address:3001 / 您可以通过 http://$ip_address:3001 访问用户端 Web"
-}
-
-# Check if Docker is installed
-check_docker() {
-    if ! [ -x "$(command -v curl)" ]; then
-        echo -e "\nCurl is not installed. Installing Curl... / Curl 未安装。正在安装 Curl..."
-        if [ -x "$(command -v apt-get)" ]; then
-            sudo apt-get update -y && sudo apt-get install -y curl
-        elif [ -x "$(command -v yum)" ]; then
-            sudo yum install -y curl
-        else
-            echo -e "\nCould not determine package manager. Please install curl manually. / 无法确定包管理器。请手动安装 curl。"
-            exit 1
+    while IFS= read -r line; do
+        # Check if entering the environment section
+        if [[ $line =~ ^[[:space:]]*environment: ]]; then
+            echo "$line" >> "$temp_file"
+            in_environment_section=1
+            continue
         fi
-        echo -e "\nCurl installation completed. / Curl 安装完成。"
-    fi
-    if ! [ -x "$(command -v docker)" ]; then
-        echo -e "\nDocker is not installed. Installing Docker... / Docker 未安装。正在安装 Docker..."
-        curl -fsSL https://get.docker.com | bash -s -- -y
-        echo -e "\nDocker installation completed. / Docker 安装完成。"
-    else
-        echo -e "\nDocker is already installed. / Docker 已经安装。"
-    fi
-}
 
-# Install MySQL using Docker
-install_mysql() {
-    echo -e "\nInstalling MySQL using Docker... / 使用 Docker 安装 MySQL..."
-
-    docker run --name mysql \
-            --restart=always \
-            --log-opt max-size=10m --log-opt max-file=3 \
-            -v /var/lib/mysql:/var/lib/mysql \
-            -e MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" \
-            -e MYSQL_DATABASE="$MYSQL_DATABASE" \
-            -e MYSQL_USER="$MYSQL_USER" \
-            -e MYSQL_PASSWORD="$MYSQL_PASSWORD" \
-            -d -p 3306:3306 mysql:8
-
-    echo -e "\nMySQL installation completed. / MySQL 安装完成。"
-}
-
-# Install Redis using Docker
-install_redis() {
-    echo -e "\nInstalling Redis using Docker... / 使用 Docker 安装 Redis..."
-    if [ -n "$REDIS_PASSWORD" ]; then
-        docker run --name redis \
-            --restart=always --log-opt max-size=10m --log-opt max-file=3 \
-            -v /var/lib/redis:/data \
-            -d -p 6379:6379 redis:latest redis-server --requirepass "$REDIS_PASSWORD"
-    else
-        docker run --name redis \
-            -v /var/lib/redis:/data \
-            --restart=always --log-opt max-size=10m --log-opt max-file=3 \
-            -d -p 6379:6379 redis:latest
-    fi
-    echo -e "\nRedis installation completed. / Redis 安装完成。"
-}
-
-# Start the PPanel service
-start_docker_service() {
-    echo -e "\nStarting the PPanel service... / 启动 PPanel 服务..."
-
-    # Remove existing container if it exists
-    docker rm -f ppanel-server-beta 2>/dev/null
-
-    docker run -d -p 8080:8080 \
-      --name ppanel-server-beta \
-      --restart=always --log-opt max-size=10m --log-opt max-file=3 \
-      -v /etc/ppanel.yaml:/app/etc/ppanel.yaml \
-      ppanel/ppanel-server:beta
-
-    if [ $? -eq 0 ]; then
-        echo -e "\nPPanel service started successfully. / PPanel 服务已成功启动。"
-    else
-        echo -e "\nFailed to start PPanel service. / 无法启动 PPanel 服务。"
-    fi
-}
-
-# Command-line installation function
-command_line_install() {
-    check_docker
-    echo -e "\nPlease provide the following information / 请提供以下信息:"
-
-    # Ask if the user wants to install MySQL
-    read -p "Do you want to install MySQL using Docker now? (y/n) / 您是否想使用 Docker 安装 MySQL？(y/n): " choice
-    if [[ "$choice" =~ ^[Yy]$ ]]; then
-        read -p "Enter MySQL Database Name / 输入 MySQL 数据库名称: " MYSQL_DATABASE
-        read -sp "Enter MySQL Root Password / 输入 MySQL Root 密码: " MYSQL_ROOT_PASSWORD
-        echo
-        read -p "Enter MySQL User (default: ppanel) / 输入 MySQL 用户 (默认: ppanel): " MYSQL_USER
-        MYSQL_USER=${MYSQL_USER:-ppanel}
-        read -sp "Enter MySQL Password for user $MYSQL_USER / 输入 MySQL 用户 $MYSQL_USER 的密码: " MYSQL_PASSWORD
-        echo
-        install_mysql
-        MYSQL_HOST="localhost"
-        MYSQL_PORT="3306"
-    else
-        read -p "Enter MySQL Host (default: localhost) / 输入 MySQL 主机 (默认: localhost): " MYSQL_HOST
-        MYSQL_HOST=${MYSQL_HOST:-localhost}
-        read -p "Enter MySQL Port (default: 3306) / 输入 MySQL 端口 (默认: 3306): " MYSQL_PORT
-        MYSQL_PORT=${MYSQL_PORT:-3306}
-        read -p "Enter MySQL User (default: root) / 输入 MySQL 用户 (默认: root): " MYSQL_USER
-        MYSQL_USER=${MYSQL_USER:-root}
-        read -sp "Enter MySQL Password / 输入 MySQL 密码: " MYSQL_PASSWORD
-        echo
-        read -p "Enter MySQL Database Name / 输入 MySQL 数据库名称: " MYSQL_DATABASE
-    fi
-
-    # Ask if the user wants to install Redis
-    read -p "Do you want to install Redis using Docker now? (y/n) / 您是否想使用 Docker 安装 Redis？(y/n): " choice
-    if [[ "$choice" =~ ^[Yy]$ ]]; then
-        read -sp "Enter Redis Password (Optional) / 输入 Redis 密码 (可选): " REDIS_PASSWORD
-        echo
-        install_redis
-        REDIS_HOST="127.0.0.1"
-        REDIS_PORT="6379"
-    else
-        read -p "Enter Redis Host (default: 127.0.0.1) / 输入 Redis 主机 (默认: 127.0.0.1): " REDIS_HOST
-        REDIS_HOST=${REDIS_HOST:-127.0.0.1}
-        read -p "Enter Redis Port (default: 6379) / 输入 Redis 端口 (默认: 6379): " REDIS_PORT
-        REDIS_PORT=${REDIS_PORT:-6379}
-        read -sp "Enter Redis Password (Optional) / 输入 Redis 密码 (可选): " REDIS_PASSWORD
-        echo
-    fi
-
-    # Generate random UUID
-    if ! [ -x "$(command -v uuidgen)" ]; then
-        echo -e "\nuuidgen is not installed. Installing uuidgen... / uuidgen 未安装。正在安装 uuidgen..."
-        if [ -x "$(command -v apt-get)" ]; then
-            sudo apt-get update -y && sudo apt-get install -y uuid-runtime
-        elif [ -x "$(command -v yum)" ]; then
-            sudo yum install -y uuid
-        else
-            echo -e "\nCould not determine package manager. Please install uuidgen manually. / 无法确定包管理器。请手动安装 uuidgen。"
-            exit 1
+        # If in the environment section
+        if [[ $in_environment_section -eq 1 ]]; then
+            # Check if it's the next top-level key
+            if [[ $line =~ ^[[:space:]]*[^[:space:]-] ]]; then
+                # Leaving the environment section
+                in_environment_section=0
+            elif [[ $line =~ ^[[:space:]]*-[[:space:]]*([A-Za-z0-9_]+)= ]]; then
+                var_name="${BASH_REMATCH[1]}"
+                # If it's NEXT_PUBLIC_API_URL, set to user-provided value
+                if [[ $var_name == "NEXT_PUBLIC_API_URL" ]]; then
+                    echo "      - NEXT_PUBLIC_API_URL=$api_url" >> "$temp_file"
+                else
+                    # Other variables, set value to empty string
+                    echo "      - $var_name=" >> "$temp_file"
+                fi
+                continue
+            else
+                # Other lines, copy directly
+                echo "$line" >> "$temp_file"
+                continue
+            fi
         fi
-        echo -e "\nuuidgen installation completed. / uuidgen 安装完成。"
-    fi
 
-    ACCESS_SECRET=$(uuidgen)
-    ACCESS_EXPIRE=604800
+        # Copy other lines
+        echo "$line" >> "$temp_file"
+    done < "$yml_file"
 
-    # Create configuration file
-    cat > /etc/ppanel.yaml <<EOL
-Host: 0.0.0.0
-Port: 8080
-Debug: true
-JwtAuth:
-    AccessSecret: "${ACCESS_SECRET}"
-    AccessExpire: ${ACCESS_EXPIRE}
-Logger:
-    FilePath: ./ppanel.log
-    MaxSize: 50
-    MaxBackup: 3
-    MaxAge: 30
-    Compress: true
-    LogType: json
-    Level: info
-MySQL:
-    Addr: ${MYSQL_HOST}:${MYSQL_PORT}
-    Username: ${MYSQL_USER}
-    Password: ${MYSQL_PASSWORD}
-    Dbname: ${MYSQL_DATABASE}
-    Config: charset%3Dutf8mb4%26parseTime%3Dtrue%26loc%3DLocal
-    MaxIdleConns: 10
-    MaxOpenConns: 10
-    LogMode: dev
-    LogZap: false
-    SlowThreshold: 1000
-Redis:
-    Host: ${REDIS_HOST}:${REDIS_PORT}
-    Pass: "${REDIS_PASSWORD}"
-    DB: 0
-EOL
-
-    start_docker_service
-
-    # Get server IP address
-    ip_address=$(hostname -I 2>/dev/null | awk '{print $1}')
-    if [ -z "$ip_address" ]; then
-        ip_address=$(ifconfig 2>/dev/null | grep 'inet ' | awk 'NR==1{print $2}')
-    fi
-    if [ -z "$ip_address" ]; then
-        ip_address=$(ip addr show 2>/dev/null | grep 'inet ' | awk '/inet /{print $2}' | cut -d'/' -f1 | head -n 1)
-    fi
-
-    echo -e "\nServer installation completed. You can access the service at http://$ip_address:8080 / 服务端安装完成。您可以通过 http://$ip_address:8080 访问服务。"
+    # Replace the original yml file with the modified one
+    mv "$temp_file" "$yml_file"
 }
 
-# Web installation function
-web_install() {
-    check_docker
+case $choice in
+    1)
+        echo "Starting one-click deployment of all components..."
+        echo "开始一键部署所有组件..."
+        # Set NEXT_PUBLIC_API_URL and update related yml files
+        set_next_public_api_url_in_yml "docker-compose.yml"
+        # Prompt user to modify configuration files
+        echo "Please modify the following configuration files according to your needs before continuing:"
+        echo "- ppanel-script/config/ppanel.yaml"
+        echo "- ppanel-script/docker-compose.yml"
+        echo "请根据实际需求修改以下配置文件，然后再继续部署："
+        echo "- ppanel-script/config/ppanel.yaml"
+        echo "- ppanel-script/docker-compose.yml"
+        read -p "After modification, press Enter to continue... / 修改完成后，按回车键继续..."
+        docker compose up -d
+        ;;
+    2)
+        echo "Starting deployment of the server..."
+        echo "开始部署服务端..."
+        # Prompt user to modify configuration files
+        echo "Please modify the following configuration files according to your needs before continuing:"
+        echo "- ppanel-script/config/ppanel.yaml"
+        echo "- ppanel-script/ppanel-server.yml"
+        echo "请根据实际需求修改以下配置文件，然后再继续部署："
+        echo "- ppanel-script/config/ppanel.yaml"
+        echo "- ppanel-script/ppanel-server.yml"
+        read -p "After modification, press Enter to continue... / 修改完成后，按回车键继续..."
+        docker compose -f ppanel-server.yml up -d
+        ;;
+    3)
+        echo "Starting deployment of the admin dashboard..."
+        echo "开始部署管理端..."
+        set_next_public_api_url_in_yml "ppanel-admin-web.yml"
+        echo "Please modify the following configuration files according to your needs before continuing:"
+        echo "- ppanel-script/ppanel-admin-web.yml"
+        echo "请根据实际需求修改以下配置文件，然后再继续部署："
+        echo "- ppanel-script/ppanel-admin-web.yml"
+        read -p "After modification, press Enter to continue... / 修改完成后，按回车键继续..."
+        docker compose -f ppanel-admin-web.yml up -d
+        ;;
+    4)
+        echo "Starting deployment of the user dashboard..."
+        echo "开始部署用户端..."
+        set_next_public_api_url_in_yml "ppanel-user-web.yml"
+        echo "Please modify the following configuration files according to your needs before continuing:"
+        echo "- ppanel-script/ppanel-user-web.yml"
+        echo "请根据实际需求修改以下配置文件，然后再继续部署："
+        echo "- ppanel-script/ppanel-user-web.yml"
+        read -p "After modification, press Enter to continue... / 修改完成后，按回车键继续..."
+        docker compose -f ppanel-user-web.yml up -d
+        ;;
+    5)
+        echo "Starting deployment of the front-end (Admin and User dashboards)..."
+        echo "开始部署前端（管理端和用户端）..."
+        set_next_public_api_url_in_yml "ppanel-web.yml"
+        echo "Please modify the following configuration files according to your needs before continuing:"
+        echo "- ppanel-script/ppanel-web.yml"
+        echo "请根据实际需求修改以下配置文件，然后再继续部署："
+        echo "- ppanel-script/ppanel-web.yml"
+        read -p "After modification, press Enter to continue... / 修改完成后，按回车键继续..."
+        docker compose -f ppanel-web.yml up -d
+        ;;
+    6)
+        echo "Updating running services..."
+        echo "正在更新正在运行的服务..."
+        # Get a list of running containers and their compose project names
+        mapfile -t running_projects < <(docker ps --format '{{.Label "com.docker.compose.project"}}' | sort | uniq)
+        if [ ${#running_projects[@]} -eq 0 ]; then
+            echo "No running services detected."
+            echo "未检测到正在运行的服务。"
+        else
+            for project in "${running_projects[@]}"; do
+                if [ -z "$project" ]; then
+                    continue
+                fi
+                echo "Updating services in project: $project"
+                echo "正在更新项目中的服务：$project"
+                docker compose -p "$project" pull
+                docker compose -p "$project" up -d
+            done
+            echo "All running services have been updated."
+            echo "所有正在运行的服务已更新。"
+        fi
+        ;;
+    7)
+        echo "Restarting running services..."
+        echo "正在重启正在运行的服务..."
+        # Get a list of running containers and their compose project names
+        mapfile -t running_projects < <(docker ps --format '{{.Label "com.docker.compose.project"}}' | sort | uniq)
+        if [ ${#running_projects[@]} -eq 0 ]; then
+            echo "No running services detected."
+            echo "未检测到正在运行的服务。"
+        else
+            for project in "${running_projects[@]}"; do
+                if [ -z "$project" ]; then
+                    continue
+                fi
+                echo "Restarting services in project: $project"
+                echo "正在重启项目中的服务：$project"
+                docker compose -p "$project" restart
+            done
+            echo "All running services have been restarted."
+            echo "所有正在运行的服务已重启。"
+        fi
+        ;;
+    8)
+        echo "Viewing logs..."
+        echo "查看日志..."
+        echo "You can press Ctrl+C to exit log viewing."
+        echo "您可以按 Ctrl+C 退出日志查看。"
+        docker compose logs -f
+        ;;
+    9)
+        echo "Exiting the installation script."
+        echo "退出安装脚本。"
+        exit 0
+        ;;
+    *)
+        echo "Invalid option, please rerun the script and select a valid number (1-9)."
+        echo "无效的选项，请重新运行脚本并选择正确的数字（1-9）。"
+        exit 1
+        ;;
+esac
 
-    # Create an empty /etc/ppanel.yaml file
-    echo -e "\nCreating an empty /etc/ppanel.yaml file... / 创建空的 /etc/ppanel.yaml 文件..."
-    > /etc/ppanel.yaml
-    echo -e "Empty /etc/ppanel.yaml file created. / 已创建空的 /etc/ppanel.yaml 文件。\n"
+# Deployment completion information (for deployment options)
+if [[ "$choice" -ge 1 && "$choice" -le 5 ]]; then
+    echo "Deployment completed!"
+    echo "部署完成！"
 
-    # Ask if the user wants to install MySQL
-    read -p "Do you want to install MySQL using Docker now? (y/n) / 您是否想使用 Docker 安装 MySQL？(y/n): " choice
-    if [[ "$choice" =~ ^[Yy]$ ]]; then
-        read -p "Enter MySQL Database Name / 输入 MySQL 数据库名称: " MYSQL_DATABASE
-        read -sp "Enter MySQL Root Password / 输入 MySQL Root 密码: " MYSQL_ROOT_PASSWORD
-        echo
-        read -p "Enter MySQL User / 输入 MySQL 用户名 (default: ppanel): " MYSQL_USER
-        MYSQL_USER=${MYSQL_USER:-ppanel}
-        read -sp "Enter MySQL Password / 输入 MySQL 密码: " MYSQL_PASSWORD
-        echo
-        install_mysql
+    # Prompt access addresses
+    echo ""
+    echo "Please use the following addresses to access the deployed services:"
+    echo "请使用以下地址访问已部署的服务："
+    if [ "$choice" == "1" ] || [ "$choice" == "2" ]; then
+        echo "Server (API) / 服务端（API）：http://$SERVER_IP:8080"
+    fi
+    if [ "$choice" == "1" ] || [ "$choice" == "3" ]; then
+        echo "Admin Dashboard / 管理端：http://$SERVER_IP:3000"
+    fi
+    if [ "$choice" == "1" ] || [ "$choice" == "4" ]; then
+        echo "User Dashboard / 用户端：http://$SERVER_IP:3001"
+    fi
+    if [ "$choice" == "5" ]; then
+        echo "Admin Dashboard / 管理端：http://$SERVER_IP:3000"
+        echo "User Dashboard / 用户端：http://$SERVER_IP:3001"
     fi
 
-    # Ask if the user wants to install Redis
-    read -p "Do you want to install Redis using Docker now? (y/n) / 您是否想使用 Docker 安装 Redis？(y/n): " choice
-    if [[ "$choice" =~ ^[Yy]$ ]]; then
-        read -sp "Enter Redis Password (Optional) / 输入 Redis 密码 (可选): " REDIS_PASSWORD
-        echo
-        install_redis
+    # Display default admin account information (only for options 1 or 2)
+    if [ "$choice" == "1" ] || [ "$choice" == "2" ]; then
+        echo ""
+        echo "Default Admin Account / 默认管理员账户："
+        echo "Username / 用户名: admin@ppanel.dev"
+        echo "Password / 密码: admin-password"
+        echo "Please change the default password after the first login to ensure security."
+        echo "请在首次登录后及时修改默认密码以确保安全。"
     fi
 
-    echo -e "\nStarting the PPanel service for Web Installation... / 启动 PPanel 服务以进行 Web 安装..."
-    start_docker_service
-
-    # Get server IP address
-    ip_address=$(hostname -I 2>/dev/null | awk '{print $1}')
-    if [ -z "$ip_address" ]; then
-        ip_address=$(ifconfig 2>/dev/null | grep 'inet ' | awk 'NR==1{print $2}')
-    fi
-    if [ -z "$ip_address" ]; then
-        ip_address=$(ip addr show 2>/dev/null | grep 'inet ' | awk '/inet /{print $2}' | cut -d'/' -f1 | head -n 1)
-    fi
-
-    echo -e "\nPlease go to http://$ip_address:8080 to complete the initialization. / 请前往 http://$ip_address:8080 完成初始化。"
-}
-
-# Start the script
-main_menu
+    # Display service status
+    echo ""
+    echo "You can check the service status using the following command:"
+    echo "您可以使用以下命令查看服务运行状态："
+    echo "docker compose ps"
+fi
