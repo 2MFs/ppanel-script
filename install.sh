@@ -8,14 +8,14 @@
 # Added an "Update services" option that functions similarly to "Restart services"
 
 # Define color variables
-RED='\e[31m'
-GREEN='\e[32m'
-YELLOW='\e[33m'
-BLUE='\e[34m'
-CYAN='\e[36m'
-BOLD='\e[1m'
-UNDERLINE='\e[4m'
-NC='\e[0m' # No Color
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+UNDERLINE='\033[4m'
+NC='\033[0m' # No Color
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
@@ -94,7 +94,7 @@ echo -e "9) Exit / 退出"
 echo -e "${CYAN}==================================================${NC}"
 
 # Prompt user for selection
-read -p "$(echo -e ${BOLD}Please enter a number (1-9): ${NC})" choice
+read -p "${BOLD}Please enter a number (1-9): ${NC}" choice
 # If the user does not input, default to 1
 if [ -z "$choice" ]; then
     choice=1
@@ -102,7 +102,7 @@ fi
 
 # Define a function to set NEXT_PUBLIC_API_URL and clear other environment variables
 set_next_public_api_url_in_yml() {
-    read -p "$(echo -e ${BOLD}Please enter NEXT_PUBLIC_API_URL (e.g., https://api.example.com): ${NC})" api_url
+    read -p "${BOLD}Please enter NEXT_PUBLIC_API_URL (e.g., https://api.example.com): ${NC}" api_url
     if [ -z "$api_url" ]; then
         echo -e "${RED}NEXT_PUBLIC_API_URL cannot be empty. Please rerun the script and enter a valid URL.${NC}"
         echo -e "${RED}NEXT_PUBLIC_API_URL 不能为空，请重新运行脚本并输入有效的 URL。${NC}"
@@ -129,22 +129,23 @@ set_next_public_api_url_in_yml() {
 
         # If in the environment section
         if [[ $in_environment_section -eq 1 ]]; then
-            # Check if it's the next top-level key
-            if [[ $line =~ ^[[:space:]]*[^[:space:]] && ! $line =~ ^[[:space:]]+- ]]; then
-                # Leaving the environment section
+            # Check if it's the next top-level key (without indentation)
+            if [[ $line =~ ^[[:space:]]{0,2}[a-zA-Z0-9_-]+: ]]; then
                 in_environment_section=0
-            else
-                if [[ $line =~ ^[[:space:]]*([A-Za-z0-9_]+): ]]; then
-                    var_name="${BASH_REMATCH[1]}"
-                    # If it's NEXT_PUBLIC_API_URL, set to user-provided value
-                    if [[ $var_name == "NEXT_PUBLIC_API_URL" ]]; then
-                        echo "      NEXT_PUBLIC_API_URL: $api_url" >> "$temp_file"
-                    else
-                        # Other variables, set value to empty string
-                        echo "      $var_name:" >> "$temp_file"
-                    fi
-                    continue
+            elif [[ $line =~ ^[[:space:]]*([A-Za-z0-9_]+): ]]; then
+                var_name="${BASH_REMATCH[1]}"
+                # If it's NEXT_PUBLIC_API_URL, set to user-provided value
+                if [[ $var_name == "NEXT_PUBLIC_API_URL" ]]; then
+                    echo "      $var_name: $api_url" >> "$temp_file"
+                else
+                    # Other variables, set value to empty string
+                    echo "      $var_name:" >> "$temp_file"
                 fi
+                continue
+            else
+                # Copy lines within the environment section
+                echo "$line" >> "$temp_file"
+                continue
             fi
         fi
 
@@ -169,7 +170,7 @@ case $choice in
         echo -e "${YELLOW}请根据实际需求修改以下配置文件，然后再继续部署：${NC}"
         echo "- ppanel-script/config/ppanel.yaml"
         echo "- ppanel-script/docker-compose.yml"
-        read -p "$(echo -e ${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC})"
+        read -p "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
         docker compose up -d
         ;;
     2)
@@ -182,7 +183,7 @@ case $choice in
         echo -e "${YELLOW}请根据实际需求修改以下配置文件，然后再继续部署：${NC}"
         echo "- ppanel-script/config/ppanel.yaml"
         echo "- ppanel-script/ppanel-server.yml"
-        read -p "$(echo -e ${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC})"
+        read -p "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
         docker compose -f ppanel-server.yml up -d
         ;;
     3)
@@ -193,7 +194,7 @@ case $choice in
         echo "- ppanel-script/ppanel-admin-web.yml"
         echo -e "${YELLOW}请根据实际需求修改以下配置文件，然后再继续部署：${NC}"
         echo "- ppanel-script/ppanel-admin-web.yml"
-        read -p "$(echo -e ${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC})"
+        read -p "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
         docker compose -f ppanel-admin-web.yml up -d
         ;;
     4)
@@ -204,7 +205,7 @@ case $choice in
         echo "- ppanel-script/ppanel-user-web.yml"
         echo -e "${YELLOW}请根据实际需求修改以下配置文件，然后再继续部署：${NC}"
         echo "- ppanel-script/ppanel-user-web.yml"
-        read -p "$(echo -e ${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC})"
+        read -p "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
         docker compose -f ppanel-user-web.yml up -d
         ;;
     5)
@@ -215,7 +216,7 @@ case $choice in
         echo "- ppanel-script/ppanel-web.yml"
         echo -e "${YELLOW}请根据实际需求修改以下配置文件，然后再继续部署：${NC}"
         echo "- ppanel-script/ppanel-web.yml"
-        read -p "$(echo -e ${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC})"
+        read -p "${BOLD}After modification, press Enter to continue... / 修改完成后，按回车键继续...${NC}"
         docker compose -f ppanel-web.yml up -d
         ;;
     6)
