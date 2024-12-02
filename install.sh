@@ -115,11 +115,11 @@ set_next_public_api_url_in_yml() {
     # Backup the original yml file
     cp "$yml_file" "${yml_file}.bak"
 
-    # Initialize flag
-    in_environment_section=0
-
     # Create a temporary file
     temp_file=$(mktemp)
+
+    # Initialize flag
+    in_environment_section=0
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         # Check if entering the environment section
@@ -134,14 +134,15 @@ set_next_public_api_url_in_yml() {
             # Check if it's the next top-level key (without indentation)
             if [[ $line =~ ^[[:space:]]{0,2}[a-zA-Z0-9_-]+: ]]; then
                 in_environment_section=0
-            elif [[ $line =~ ^[[:space:]]*([A-Za-z0-9_]+): ]]; then
-                var_name="${BASH_REMATCH[1]}"
+            elif [[ $line =~ ^([[:space:]]*)([A-Za-z0-9_]+): ]]; then
+                indentation="${BASH_REMATCH[1]}"
+                var_name="${BASH_REMATCH[2]}"
                 # If it's NEXT_PUBLIC_API_URL, set to user-provided value
                 if [[ $var_name == "NEXT_PUBLIC_API_URL" ]]; then
-                    echo "      $var_name: $api_url" >> "$temp_file"
+                    echo "${indentation}${var_name}: $api_url" >> "$temp_file"
                 else
                     # Other variables, set value to empty string
-                    echo "      $var_name:" >> "$temp_file"
+                    echo "${indentation}${var_name}: \"\"" >> "$temp_file"
                 fi
                 continue
             else
