@@ -101,7 +101,7 @@ if [ -z "$choice" ]; then
     choice=1
 fi
 
-# Define a function to set NEXT_PUBLIC_API_URL and clear other environment variables
+# Define a function to set NEXT_PUBLIC_API_URL
 set_next_public_api_url_in_yml() {
     echo -ne "${BOLD}Please enter NEXT_PUBLIC_API_URL (e.g., https://api.example.com): ${NC}"
     read api_url
@@ -134,20 +134,11 @@ set_next_public_api_url_in_yml() {
             # Check if it's the next top-level key (without indentation)
             if [[ $line =~ ^[[:space:]]{0,2}[a-zA-Z0-9_-]+: ]]; then
                 in_environment_section=0
-            elif [[ $line =~ ^([[:space:]]*)([A-Za-z0-9_]+): ]]; then
+            elif [[ $line =~ ^([[:space:]]*)(NEXT_PUBLIC_API_URL): ]]; then
                 indentation="${BASH_REMATCH[1]}"
                 var_name="${BASH_REMATCH[2]}"
-                # If it's NEXT_PUBLIC_API_URL, set to user-provided value
-                if [[ $var_name == "NEXT_PUBLIC_API_URL" ]]; then
-                    echo "${indentation}${var_name}: $api_url" >> "$temp_file"
-                else
-                    # Other variables, set value to empty string
-                    echo "${indentation}${var_name}: \"\"" >> "$temp_file"
-                fi
-                continue
-            else
-                # Copy lines within the environment section
-                echo "$line" >> "$temp_file"
+                # Set NEXT_PUBLIC_API_URL to user-provided value
+                echo "${indentation}${var_name}: $api_url" >> "$temp_file"
                 continue
             fi
         fi
