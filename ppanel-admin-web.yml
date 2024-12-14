@@ -3,6 +3,8 @@ version: '3'
 services:
   ppanel-admin-web:
     image: ppanel/ppanel-admin-web:beta
+    container_name: ppanel-admin-web
+    restart: always
     ports:
       - '3000:3000'
     environment:

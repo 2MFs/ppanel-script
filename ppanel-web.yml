@@ -3,12 +3,16 @@ version: '3'
 services:
   ppanel-admin-web:
     image: ppanel/ppanel-admin-web:beta
+    container_name: ppanel-admin-web
+    restart: always
     ports:
       - '3000:3000'
     environment:
       NEXT_PUBLIC_API_URL: https://api.example.com
   ppanel-user-web:
     image: ppanel/ppanel-user-web:beta
+    container_name: ppanel-user-web
+    restart: always
     ports:
       - '3001:3000'
     environment:

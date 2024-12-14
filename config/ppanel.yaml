@@ -23,5 +23,9 @@ MySQL:
 
 Redis:
   Host: redis_cache:6379  # Redis server address
-  Type: server  # Redis type
   Pass:  # Redis password (if any)
+  DB: 0  # Redis database number
+
+Administer:
+  Password: admin-password # Admin password (should be changed)
+  Email: admin@ppanel.dev # Admin email address

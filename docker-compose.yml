@@ -58,6 +58,7 @@ services:
   ppanel-admin-web:
     image: ppanel/ppanel-admin-web:beta
     container_name: ppanel-admin-web
+    restart: always
     ports:
       - '3000:3000'
     environment:
@@ -67,6 +68,7 @@ services:
   ppanel-user-web:
     image: ppanel/ppanel-user-web:beta
     container_name: ppanel-user-web
+    restart: always
     ports:
       - '3001:3000'
     environment:
