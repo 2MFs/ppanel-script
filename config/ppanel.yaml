@@ -27,5 +27,5 @@ Redis:
   DB: 0  # Redis database number
 
 Administer:
-  Password: admin-password # Admin password (should be changed)
+  Password: password # Admin password (should be changed)
   Email: admin@ppanel.dev # Admin email address
