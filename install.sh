@@ -308,7 +308,7 @@ if [[ "$choice" -ge 1 && "$choice" -le 5 ]]; then
         echo ""
         echo -e "${BOLD}Default Admin Account / 默认管理员账户：${NC}"
         echo -e "Username / 用户名: ${CYAN}admin@ppanel.dev${NC}"
-        echo -e "Password / 密码: ${CYAN}admin-password${NC}"
+        echo -e "Password / 密码: ${CYAN}password${NC}"
         echo -e "${YELLOW}Please change the default password after the first login to ensure security.${NC}"
         echo -e "${YELLOW}请在首次登录后及时修改默认密码以确保安全。${NC}"
     fi
