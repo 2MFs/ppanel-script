@@ -56,7 +56,7 @@ services:
       - ppanel-network
 
   ppanel-admin-web:
-    image: ppanel/ppanel-admin-web:beta
+    image: ppanel/ppanel-admin-web:latest
     container_name: ppanel-admin-web
     restart: always
     ports:
@@ -66,7 +66,7 @@ services:
       NEXT_PUBLIC_API_URL: https://api.example.com
 
   ppanel-user-web:
-    image: ppanel/ppanel-user-web:beta
+    image: ppanel/ppanel-user-web:latest
     container_name: ppanel-user-web
     restart: always
     ports:
