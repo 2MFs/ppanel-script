@@ -66,7 +66,7 @@ set_next_public_api_url_in_yml() {
     if [ -z "$api_url" ]; then
         api_url="$DEFAULT_API_URL"
         if [ "$LANGUAGE" == "CN" ]; then
-            warning "未输入，使用默认的 NEXT_PUBLIC_API_URL：$api_url"
+            warning "$api_url"
         else
             warning "No input detected. Using default NEXT_PUBLIC_API_URL: $api_url"
         fi
@@ -110,6 +110,57 @@ set_next_public_api_url_in_yml() {
 
     # Replace the original yml file with the modified one
     mv "$temp_file" "$yml_file"
+}
+
+generate_guid_password() {
+    # 生成16字节随机数并格式化为UUID风格
+    local hex=$(openssl rand -hex 16)
+    local uuid=$(echo $hex | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/')
+    # 生成最终密码（md5(uuid-时间戳)）
+    local password=$(echo -n "${uuid}-$(date +%s)" | md5sum | awk '{print $1}')
+    echo "$password"
+}
+
+input_admin_account() {
+    # Default admin email is admin@ppanel.dev
+    DEFAULT_ADMIN_EMAIL="admin@ppanel.dev"
+    while true; do
+        if [ "$LANGUAGE" == "CN" ]; then
+            prompt "请输入管理员账号邮箱 (默认为: $DEFAULT_ADMIN_EMAIL): "
+        else
+            prompt "Please enter administrator email (default: $DEFAULT_ADMIN_EMAIL): "
+        fi
+        read admin_email
+        if [ -z "$admin_email" ]; then
+            admin_email="$DEFAULT_ADMIN_EMAIL"
+            if [ "$LANGUAGE" == "CN" ]; then
+                warning "$admin_email"
+            else
+                warning "No input detected. Using default administrator email: $admin_email"
+            fi
+        fi
+
+        # 简单邮箱格式校验
+        if [[ "$admin_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+            # 生成密码
+            admin_password=$(generate_guid_password)
+            # 只修改 Administrator.Password
+            if grep -q '^  Password:' config/ppanel.yaml; then
+                sed -i.bak "/^Administrator:/,/^[^ ]/ s/^  Password:.*/  Password: $admin_password/" config/ppanel.yaml
+            fi
+            # 只修改 Administrator.Email
+            if grep -q '^  Email:' config/ppanel.yaml; then
+                sed -i.bak "/^Administrator:/,/^[^ ]/ s/^  Email:.*/  Email: $admin_email/" config/ppanel.yaml
+            fi
+            break
+        else
+            if [ "$LANGUAGE" == "CN" ]; then
+                warning "请输入有效的邮箱地址."
+            else
+                warning "Please enter a valid email address."
+            fi
+        fi
+    done
 }
 
 # ===========================
@@ -180,22 +231,6 @@ main() {
         apt-get install -y curl
     fi
 
-    # Check if git is installed
-    if command -v git >/dev/null 2>&1; then
-        if [ "$LANGUAGE" == "CN" ]; then
-            warning "检测到 git 已安装，跳过安装步骤。"
-        else
-            warning "git is already installed. Skipping installation."
-        fi
-    else
-        if [ "$LANGUAGE" == "CN" ]; then
-            info "正在安装 git..."
-        else
-            info "Installing git..."
-        fi
-        apt-get install -y git
-    fi
-
     # Check if Docker is installed
     if command -v docker >/dev/null 2>&1; then
         if [ "$LANGUAGE" == "CN" ]; then
@@ -211,6 +246,22 @@ main() {
             info "Installing Docker..."
         fi
         curl -fsSL https://get.docker.com | bash -s -- -y
+    fi
+
+    # Check if git is installed
+    if command -v git >/dev/null 2>&1; then
+        if [ "$LANGUAGE" == "CN" ]; then
+            warning "检测到 git 已安装，跳过安装步骤。"
+        else
+            warning "git is already installed. Skipping installation."
+        fi
+    else
+        if [ "$LANGUAGE" == "CN" ]; then
+            info "正在安装 git..."
+        else
+            info "Installing git..."
+        fi
+        apt-get install -y git
     fi
 
     # Check if in ppanel-script directory
@@ -246,32 +297,24 @@ main() {
 
     if [ "$LANGUAGE" == "CN" ]; then
         echo -e "1) 一键部署（全部组件）"
-        echo -e "2) 部署服务端"
-        echo -e "3) 部署管理端"
-        echo -e "4) 部署用户端"
-        echo -e "5) 部署前端（管理端和用户端）"
-        echo -e "6) 更新服务"
-        echo -e "7) 重启服务"
-        echo -e "8) 查看日志"
-        echo -e "9) 退出"
+        echo -e "2) 更新服务"
+        echo -e "3) 重启服务"
+        echo -e "4) 查看日志"
+        echo -e "5) 退出"
     else
         echo -e "1) One-click deployment (All components)"
-        echo -e "2) Deploy server"
-        echo -e "3) Deploy admin dashboard"
-        echo -e "4) Deploy user dashboard"
-        echo -e "5) Deploy front-end (Admin and User dashboards)"
-        echo -e "6) Update services"
-        echo -e "7) Restart services"
-        echo -e "8) View logs"
-        echo -e "9) Exit"
+        echo -e "2) Update services"
+        echo -e "3) Restart services"
+        echo -e "4) View logs"
+        echo -e "5) Exit"
     fi
     bold_echo "=================================================="
 
     # Prompt user for selection
     if [ "$LANGUAGE" == "CN" ]; then
-        prompt "请输入一个数字 (1-9) [1]: "
+        prompt "请输入一个数字 (1-5) [1]: "
     else
-        prompt "Please enter a number (1-9) [1]: "
+        prompt "Please enter a number (1-5) [1]: "
     fi
     read choice
 
@@ -289,104 +332,11 @@ main() {
                 info "Starting one-click deployment of all components..."
             fi
             # Set NEXT_PUBLIC_API_URL and update related yml files
-            set_next_public_api_url_in_yml "docker-compose.yml"
-            # Prompt user to modify configuration files
-            if [ "$LANGUAGE" == "CN" ]; then
-                warning "请根据实际需求修改以下配置文件，然后再继续部署："
-                echo "- ppanel-script/config/ppanel.yaml"
-                echo "- ppanel-script/docker-compose.yml"
-                prompt "修改完成后，按回车键继续... "
-            else
-                warning "Please modify the following configuration files according to your needs before continuing:"
-                echo "- ppanel-script/config/ppanel.yaml"
-                echo "- ppanel-script/docker-compose.yml"
-                prompt "After modification, press Enter to continue... "
-            fi
-            read
+            set_next_public_api_url_in_yml "compose.yaml"
+            input_admin_account
             docker compose up -d
             ;;
         2)
-            if [ "$LANGUAGE" == "CN" ]; then
-                info "开始部署服务端..."
-            else
-                info "Starting deployment of the server..."
-            fi
-            # Prompt user to modify configuration files
-            if [ "$LANGUAGE" == "CN" ]; then
-                warning "请根据实际需求修改以下配置文件，然后再继续部署："
-                echo "- ppanel-script/config/ppanel.yaml"
-                echo "- ppanel-script/ppanel-server.yml"
-                prompt "修改完成后，按回车键继续... "
-            else
-                warning "Please modify the following configuration files according to your needs before continuing:"
-                echo "- ppanel-script/config/ppanel.yaml"
-                echo "- ppanel-script/ppanel-server.yml"
-                prompt "After modification, press Enter to continue... "
-            fi
-            read
-            docker compose -f ppanel-server.yml up -d
-            ;;
-        3)
-            if [ "$LANGUAGE" == "CN" ]; then
-                info "开始部署管理端..."
-            else
-                info "Starting deployment of the admin dashboard..."
-            fi
-            set_next_public_api_url_in_yml "ppanel-admin-web.yml"
-            # Prompt user to modify configuration files
-            if [ "$LANGUAGE" == "CN" ]; then
-                warning "请根据实际需求修改以下配置文件，然后再继续部署："
-                echo "- ppanel-script/ppanel-admin-web.yml"
-                prompt "修改完成后，按回车键继续... "
-            else
-                warning "Please modify the following configuration files according to your needs before continuing:"
-                echo "- ppanel-script/ppanel-admin-web.yml"
-                prompt "After modification, press Enter to continue... "
-            fi
-            read
-            docker compose -f ppanel-admin-web.yml up -d
-            ;;
-        4)
-            if [ "$LANGUAGE" == "CN" ]; then
-                info "开始部署用户端..."
-            else
-                info "Starting deployment of the user dashboard..."
-            fi
-            set_next_public_api_url_in_yml "ppanel-user-web.yml"
-            # Prompt user to modify configuration files
-            if [ "$LANGUAGE" == "CN" ]; then
-                warning "请根据实际需求修改以下配置文件，然后再继续部署："
-                echo "- ppanel-script/ppanel-user-web.yml"
-                prompt "修改完成后，按回车键继续... "
-            else
-                warning "Please modify the following configuration files according to your needs before continuing:"
-                echo "- ppanel-script/ppanel-user-web.yml"
-                prompt "After modification, press Enter to continue... "
-            fi
-            read
-            docker compose -f ppanel-user-web.yml up -d
-            ;;
-        5)
-            if [ "$LANGUAGE" == "CN" ]; then
-                info "开始部署前端（管理端和用户端）..."
-            else
-                info "Starting deployment of the front-end (Admin and User dashboards)..."
-            fi
-            set_next_public_api_url_in_yml "ppanel-web.yml"
-            # Prompt user to modify configuration files
-            if [ "$LANGUAGE" == "CN" ]; then
-                warning "请根据实际需求修改以下配置文件，然后再继续部署："
-                echo "- ppanel-script/ppanel-web.yml"
-                prompt "修改完成后，按回车键继续... "
-            else
-                warning "Please modify the following configuration files according to your needs before continuing:"
-                echo "- ppanel-script/ppanel-web.yml"
-                prompt "After modification, press Enter to continue... "
-            fi
-            read
-            docker compose -f ppanel-web.yml up -d
-            ;;
-        6)
             if [ "$LANGUAGE" == "CN" ]; then
                 info "正在更新正在运行的服务..."
             else
@@ -420,7 +370,7 @@ main() {
                 fi
             fi
             ;;
-        7)
+        3)
             if [ "$LANGUAGE" == "CN" ]; then
                 info "正在重启正在运行的服务..."
             else
@@ -453,7 +403,7 @@ main() {
                 fi
             fi
             ;;
-        8)
+        4)
             if [ "$LANGUAGE" == "CN" ]; then
                 info "查看日志..."
                 warning "您可以按 Ctrl+C 退出日志查看。"
@@ -463,7 +413,7 @@ main() {
             fi
             docker compose logs -f
             ;;
-        9)
+        5)
             if [ "$LANGUAGE" == "CN" ]; then
                 info "退出安装脚本。"
             else
@@ -473,16 +423,16 @@ main() {
             ;;
         *)
             if [ "$LANGUAGE" == "CN" ]; then
-                error "无效的选项，请重新运行脚本并选择正确的数字（1-9）。"
+                error "无效的选项，请重新运行脚本并选择正确的数字（1-5）。"
             else
-                error "Invalid option, please rerun the script and select a valid number (1-9)."
+                error "Invalid option, please rerun the script and select a valid number (1-5)."
             fi
             exit 1
             ;;
     esac
 
-    # Deployment completion information (for deployment options)
-    if [[ "$choice" -ge 1 && "$choice" -le 5 ]]; then
+    # 部署完成信息（仅一键部署时显示）
+    if [[ "$choice" -eq 1 ]]; then
         if [ "$LANGUAGE" == "CN" ]; then
             info "部署完成！"
         else
@@ -493,55 +443,30 @@ main() {
         echo ""
         if [ "$LANGUAGE" == "CN" ]; then
             bold_echo "请使用以下地址访问已部署的服务："
+            echo -e "服务端（API）：${CYAN}http://$SERVER_IP:8080${NC}"
+            echo -e "管理端：${CYAN}http://$SERVER_IP:3001${NC}"
+            echo -e "用户端：${CYAN}http://$SERVER_IP:3002${NC}"
         else
             bold_echo "Please use the following addresses to access the deployed services:"
+            echo -e "Server (API): ${CYAN}http://$SERVER_IP:8080${NC}"
+            echo -e "Admin Dashboard: ${CYAN}http://$SERVER_IP:3001${NC}"
+            echo -e "User Dashboard: ${CYAN}http://$SERVER_IP:3002${NC}"
         fi
 
-        if [ "$choice" == "1" ] || [ "$choice" == "2" ]; then
-            if [ "$LANGUAGE" == "CN" ]; then
-                echo -e "服务端（API）：${CYAN}http://$SERVER_IP:8080${NC}"
-            else
-                echo -e "Server (API): ${CYAN}http://$SERVER_IP:8080${NC}"
-            fi
-        fi
-        if [ "$choice" == "1" ] || [ "$choice" == "3" ]; then
-            if [ "$LANGUAGE" == "CN" ]; then
-                echo -e "管理端：${CYAN}http://$SERVER_IP:3000${NC}"
-            else
-                echo -e "Admin Dashboard: ${CYAN}http://$SERVER_IP:3000${NC}"
-            fi
-        fi
-        if [ "$choice" == "1" ] || [ "$choice" == "4" ]; then
-            if [ "$LANGUAGE" == "CN" ]; then
-                echo -e "用户端：${CYAN}http://$SERVER_IP:3001${NC}"
-            else
-                echo -e "User Dashboard: ${CYAN}http://$SERVER_IP:3001${NC}"
-            fi
-        fi
-        if [ "$choice" == "5" ]; then
-            if [ "$LANGUAGE" == "CN" ]; then
-                echo -e "管理端：${CYAN}http://$SERVER_IP:3000${NC}"
-                echo -e "用户端：${CYAN}http://$SERVER_IP:3001${NC}"
-            else
-                echo -e "Admin Dashboard: ${CYAN}http://$SERVER_IP:3000${NC}"
-                echo -e "User Dashboard: ${CYAN}http://$SERVER_IP:3001${NC}"
-            fi
-        fi
-
-        # Display default admin account information (only for options 1 or 2)
-        if [ "$choice" == "1" ] || [ "$choice" == "2" ]; then
-            echo ""
-            if [ "$LANGUAGE" == "CN" ]; then
-                bold_echo "默认管理员账户："
-                echo -e "用户名: ${CYAN}admin@ppanel.dev${NC}"
-                echo -e "密码: ${CYAN}password${NC}"
-                warning "请在首次登录后及时修改默认密码以确保安全。"
-            else
-                bold_echo "Default Admin Account:"
-                echo -e "Username: ${CYAN}admin@ppanel.dev${NC}"
-                echo -e "Password: ${CYAN}password${NC}"
-                warning "Please change the default password after the first login to ensure security."
-            fi
+        # Display default admin account information
+        echo ""
+        if [ "$LANGUAGE" == "CN" ]; then
+            bold_echo "默认管理员账户："
+            admin_email=$(awk '/^Administrator:/ {flag=1; next} /^[^ ]/ {flag=0} flag && /Email:/ {print $2}' config/ppanel.yaml | head -n1 | tr -d '\r\n')
+            admin_password=$(awk '/^Administrator:/ {flag=1; next} /^[^ ]/ {flag=0} flag && /Password:/ {print $2}' config/ppanel.yaml | head -n1 | tr -d '\r\n')
+            echo -e "用户名: ${CYAN}${admin_email}${NC}"
+            echo -e "密码: ${CYAN}${admin_password}${NC}"
+        else
+            bold_echo "Default Admin Account:"
+            admin_email=$(awk '/^Administrator:/ {flag=1; next} /^[^ ]/ {flag=0} flag && /Email:/ {print $2}' config/ppanel.yaml | head -n1 | tr -d '\r\n')
+            admin_password=$(awk '/^Administrator:/ {flag=1; next} /^[^ ]/ {flag=0} flag && /Password:/ {print $2}' config/ppanel.yaml | head -n1 | tr -d '\r\n')
+            echo -e "Username: ${CYAN}${admin_email}${NC}"
+            echo -e "Password: ${CYAN}${admin_password}${NC}"
         fi
 
         # Display service status

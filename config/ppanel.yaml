@@ -1,31 +1,38 @@
-Host: 0.0.0.0  # IP address the application will listen on
-Port: 8080  # Port for the application
-Debug: true  # Enable debug mode
-
-Logger:
-  File: ./ppanel.log  # Log file path
-  Level: production  # Log level: info, debug, error, production
-
+Host: 0.0.0.0
+Port: 8080
+Debug: false
 JwtAuth:
-  AccessSecret: 333ab3d5-429f-4a51-b001-ef484bf11db7  # Token secret (should be changed)
-  AccessExpire: 604800  # Token expiration time in seconds
-
+  AccessSecret: 1234567890
+  AccessExpire: 604800
+Logger:
+  ServiceName: PPanel
+  Mode: console
+  Encoding: plain
+  TimeFormat: "2025-01-01 00:00:00.000"
+  Path: logs
+  Level: debug
+  MaxContentLength: 0
+  Compress: false
+  Stat: true
+  KeepDays: 0
+  StackCooldownMillis: 100
+  MaxBackups: 0
+  MaxSize: 0
+  Rotation: daily
+  FileTimeFormat: 2025-01-01T00:00:00.000Z00:00
 MySQL:
-  Addr: mysql_db:3306 # Database address
-  Dbname: my_database  # Database name
-  Username: root  # Database username
-  Password: rootpassword # Database password
-  MaxIdleConns: 10  # Maximum idle connections
-  MaxOpenConns: 10  # Maximum open connections
-  LogMode: "dev"  # Log mode
-  LogZap: false  # Enable Zap logger
-  Config: charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai  # Database config parameters
-
+  Addr: ppanel-db:3306
+  Dbname: ppanel
+  Username: ppanel
+  Password: ppanelpassword
+  Config: charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai
+  MaxIdleConns: 10
+  MaxOpenConns: 10
+  SlowThreshold: 1000
 Redis:
-  Host: redis_cache:6379  # Redis server address
-  Pass:  # Redis password (if any)
-  DB: 0  # Redis database number
-
-Administer:
-  Password: password # Admin password (should be changed)
-  Email: admin@ppanel.dev # Admin email address
+  Host: ppanel-cache:6379
+  Pass:
+  DB: 0
+Administrator:
+  Email: admin@ppanel.dev
+  Password: password
